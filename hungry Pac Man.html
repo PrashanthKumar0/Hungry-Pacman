@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="./b64img.js"></script>
+    <title>Page Title</title>
+    <style>
+        canvas {
+            position: absolute;
+            top: 0px;
+            left: 0px;
+            z-index: 10;
+            display: none;
+        }
+
+        #ld {
+            position: fixed;
+            top: 50vh;
+            left: 50vw;
+            box-sizing: border-box;
+            transform: translate(-50%, -50%);
+            width: 250px;
+            height: 250px;
+            background: #000;
+            color: #FFF;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            padding-bottom: 50px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px #333;
+            justify-content: center;
+        }
+
+        #ld>span::before {
+            content: "";
+            position: absolute;
+            bottom: 0px;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            border-radius: 100%;
+            border: 4px solid #FFF;
+            border-left-color: transparent;
+            animation: 2s linear infinite spin;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: translate(-50%, -50%) rotate(0deg);
+            }
+
+            100% {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
+        }
+      
+        body{
+            margin: 0;
+            position: relative;
+        }
+        #readMe{
+            background: #000;
+            color: #ddd;
+            width:100%;
+            padding:20px;
+            min-height: 100vh;
+            box-sizing: border-box;
+            display: none;
+        }
+        h1{
+            margin-top:0px;
+            margin-bottom: 45px;
+            color:#fff;
+            text-align: center;
+            position: relative;
+        }
+        h1::before{
+            content:"";
+            display: block;
+            width:50%;
+            max-width: 350px;
+            height:4px;
+            border-radius:100%;
+            left:50%;
+            bottom:-8px;
+            transform: translate(-50%,-50%);
+            position: absolute;
+            background: linear-gradient(to left,aqua,hotpink);
+        }
+        h3{
+            margin:20px 0px;
+        }
+        h3:before{
+            content:"";
+            display: inline-block;
+            margin-right:8px;
+            border-radius:100%;
+            width:10px;
+            height:10px;
+            background: linear-gradient(to top right,aqua,hotpink);
+        }
+        button{
+            width:100%;
+            padding:10px;
+            font-size:1.2rem;
+            color:#fff;
+            background: linear-gradient(to top right,salmon,hotpink);
+            border-radius: 10px;
+            border:none;
+            box-shadow: 0px 0px 10px salmon,0px 0px 10px hotpink;
+        }
+        #resetBtn{
+            position: fixed;
+            bottom:10%;
+            left:50%;
+            transform:translate(-50%,-50%);
+            display: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="ld"> <span>Loading...</span> </div>
+
+    <canvas id="cnvsC"></canvas>
+    <canvas id="cnvs"></canvas>
+
+    <div id="readMe">
+        <h1>Game Instruction</h1>
+        <p>
+
+            <h3> put your phone on landscape mode for better experience</h3>
+            <h3> control keys for pc is arrow keys (up left bottom right)</h3>
+            <h3> For Mobile Users can navigate by Touching and drag (joystick control). IMO joystick control is nice ;)
+            </h3>
+            <h3>You will need to do 2 things
+                <br> Dont get hit by The Enemy<br>
+                AND Dont Eat Weeds <br>
+            </h3>
+        </p>
+        <button onclick="init();">Play</button>
+    </div>
+    <button id="resetBtn" onclick="restart()">Play Again?</button>
+    <script>
+        var ctx = cnvs.getContext("2d");
+        var ctxC = cnvsC.getContext("2d");
+        var w = cnvs.width = ctxC.canvas.width = innerWidth,
+            h = cnvs.height = ctxC.canvas.height = innerHeight;
+        var imgD = new Image();
+        //image From https://gallery.yopriceville.com/var/albums/Free-Clipart-Pictures/Cakes-PNG/Slice_of_Chocolate_Cake_PNG_Picture.png?m=1434276657   
+        imgD.src = IMG_SRC;
+        //i know this is old fashion  :P
+        var pacMan = {          //the pac man
+            x: w / 2, y: h / 2,
+            vx: 0, vy: 0,
+            ax: 0, ay: 0,
+            r: 15,
+            mouthAng: 0, score: 0, dead: 0, hunger: 0,
+            reset(){
+                    this.x=w / 2;
+                    this.y=h / 2;
+                    this.vx=this.vy=this.ax=this.ay=this.score=this.dead=this.mouthAng=this.hunger=0;
+                    this.r=15;
+            },
+            accelerate(ax, ay) { this.ax = ax; this.ay = ay; },
+
+            update() {
+                this.hunger++;
+
+                this.vx += this.ax; this.vy += this.ay;
+                this.x += this.vx; this.y += this.vy;
+                this.vx *= 0.9; this.vy *= 0.9; //damp by 1%
+                this.ax = 0; this.ay = 0;
+
+                this.mouthAng += 6 * (Math.PI / 180);
+                this.mouthAng %= 70 * (Math.PI / 180) * Math.abs(Math.sin(this.mouthAng));
+                var img = ctxC.getImageData(this.x + this.r, this.y, 1, 1);
+
+                if (img.data[3] > 0) {//if alpha value is > 0 //increment scores here
+                    var Reset = ctxC.globalCompositeOperation;
+                    ctxC.globalCompositeOperation = "destination-out";
+                    this.draw(ctxC);
+                    var sInc = rand(this.r, this.r + 50);
+                    this.score += sInc;
+                    this.hunger = 0;
+                    this.r += (sInc / (this.r + 50)) / 30;
+                    ctxC.globalCompositeOperation = Reset;
+                }
+
+                if (this.x > w) { this.x = 0; }
+                if (this.x < 0) { this.x = w; }
+                if (this.y < 0) { this.y = h; }
+                if (this.y > h) { this.y = 0; }
+            },
+            draw(ctx) {
+                //face towards velocity
+                var ang = Math.atan2(this.vy, this.vx);
+                ctx.fillStyle = "#000";
+                var score = "Score : " + this.score;
+                ctx.fillRect(10 - 4, 5, ctx.measureText(score).width + 8, 20)
+                ctx.fillStyle = "salmon";
+                ctx.fillText(score, 10, 20);
+
+
+                if (this.hunger < 600) {
+                    ctx.fillStyle = "yellow";
+                }
+                if (this.hunger >= 600) {
+                    ctx.fillStyle = "orangered";
+                }
+                if (this.hunger >= 1000) {
+                    ctx.fillText("Feed Me Fast", this.x, this.y - this.r);
+                    ctx.fillStyle = "red";
+                }
+                if (this.hunger >= 1500) {
+                    this.dead = 1;
+                }
+
+                //top Jaw
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(-this.mouthAng + ang);
+                ctx.beginPath();
+                ctx.arc(0, 0, this.r, 0, Math.PI, true);
+                ctx.fill();
+                ctx.restore();
+
+                //lower Jaw
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.mouthAng + ang);
+                ctx.beginPath();
+                ctx.arc(0, 0, this.r, 0, Math.PI);
+                ctx.fill();
+                ctx.restore();
+
+            },
+
+
+        }
+
+        function Bullet(x, y, vx, vy, color = "red") {
+
+            this.x = x; this.y = y;
+            this.vx = vx; this.vy = vy;
+            this.r = 5; this.f = Math.random(),
+                this.color = color;
+            this.draw = function () {
+                this.f += (Math.random() * 2 - 1);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.r - Math.sin(this.f), 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            this.update = function () {
+                this.x += this.vx; this.y += this.vy;
+            }
+
+            this.collideWith = function (pacMan) {
+                if (Math.hypot(this.x - pacMan.x, this.y - pacMan.y) <= pacMan.r + this.r) {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            }
+
+        }
+
+        var enemy = {
+            x: w / 2,
+            y: 0,
+            aim: 0,
+            color: "salmon",
+            r: 20,
+            fire: 0,
+            fireDelay: 100,
+            gunHeight: 50,
+            bulletSpeed: 1,
+            bullets: [],
+            reset(){
+                this.aim=this.fire=0,
+                this.fireDelay= 100;
+                this.bulletSpeed= 1;
+                this.bullets= [];  
+            },
+            draw() {
+                ctx.fillStyle = "#000";
+                ctx.save()
+                ctx.translate(this.x + 5, this.y);
+                ctx.rotate((this.aim + Math.PI));
+                ctx.fillRect(0, 0, this.gunHeight, 10);
+                ctx.restore();
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.r, 0, Math.PI);
+                ctx.fill();
+            },
+
+            update(pacMan) {
+
+                var ang = Math.atan2(this.y - pacMan.y, this.x - pacMan.x);
+                this.aim = ang;
+                this.bullets.forEach((b, i) => {
+                    if (b.collideWith(pacMan)) {
+                        pacMan.dead = 1;
+                        return;
+                    }
+                    b.update();
+                    if (b.x > w || b.x < 0 || b.y > h || b.y < 0) {
+                        this.bullets.splice(i, 1);
+                    }
+                    b.draw();
+                });
+
+                this.fire++;
+                if (this.fire >= this.fireDelay) {
+                    this.fireBullet();
+                }
+            },
+
+            fireBullet() {
+                this.bulletSpeed += 0.05;
+                var xP = Math.cos(this.aim);
+                var yP = Math.sin(this.aim);
+
+                var x = this.x - this.gunHeight * xP;
+                var y = this.y - this.gunHeight * yP;
+                this.bullets.push(new Bullet(x, y, -xP * this.bulletSpeed, -yP * this.bulletSpeed));
+                this.fire = 0;
+            }
+
+        }
+
+        var joyStick;
+
+
+
+        imgD.onload = function() {
+            document.getElementById("ld").style.display = "none";
+            document.getElementById("readMe").style.display = "block";
+        };
+
+        var weeds = [];
+        var pacManState = 0; //0 stop //1 up //2 down //3 left //4 right
+        
+        function init() {
+            document.getElementById("readMe").style.display = "none";
+            document.getElementById("cnvs").style.display = "block";
+            document.getElementById("cnvsC").style.display = "block";
+            restart();
+        }
+
+        function restart() {
+            document.getElementById("resetBtn").style.display="none";
+            weeds=[];
+            pacManState = 0;
+            enemy.reset();
+            pacMan.reset();
+            ctxC.clearRect(0,0,w,h);
+            for (var a = 0; a < 50; a++) {
+                var res = rand(50, 150);
+                var res2 = rand(50, 150);
+                ctxC.drawImage(imgD, rand(res/2, w - res), rand(res/2, h - res), res, res);
+                if (a % 5 == 0) {
+                    var weed = new Bullet(rand(res2/2, w - res2), rand(res2/2, h - res2), 0, 0, "indigo");
+                    weed.r = 10;
+                    if (weed.collideWith(pacMan)) {
+                        continue;
+                    }
+                    weeds.push(weed);
+                }
+            }
+
+            ctx.font = "15px sans-serif";
+            //save some memory
+            if (navigator.maxTouchPoints != 0) {
+                initJoyStick();
+                initTouchEvents();
+            }
+            draw();
+        }
+
+        function initJoyStick() {
+            joyStick = {
+                r: 0, angle: 0,
+                outR: 60, inR: 10,
+                x: w / 2, y: h / 2,
+                isDragging: false,
+
+                draw() {
+                    if (!this.isDragging) return;
+                    ctx.strokeStyle = "rgba(50,50,50,0.5)";
+                    ctx.fillStyle = "rgba(50,50,50,0.3)";
+
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.outR, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+
+                    var bX = this.x + this.r * Math.cos(this.angle); //ballX
+                    var bY = this.y + this.r * Math.sin(this.angle);
+
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(bX, bY);
+                    ctx.stroke();
+
+                    ctx.fillStyle = "rgba(225,100,100,0.8)";
+
+                    ctx.beginPath();
+                    ctx.arc(bX, bY, this.inR, 0, Math.PI * 2);
+                    ctx.fill();
+                },
+
+                provideInput(packMan) {
+                    if (!this.isDragging) return;
+                    var mag = this.r / this.outR;
+                    var ax = Math.floor(mag * Math.cos(this.angle) * 100) / 100;
+                    var ay = Math.floor(mag * Math.sin(this.angle) * 100) / 100;
+
+                    pacMan.ax = ax;
+                    pacMan.ay = ay;
+                }
+            }
+        }
+
+        function initTouchEvents() {
+            ontouchstart = function (e) {
+                joyStick.x = (e.touches[0].clientX);
+                joyStick.y = (e.touches[0].clientY);
+                joyStick.isDragging = 1;
+
+            }
+            ontouchmove = function (e) {
+                var x = e.touches[0].clientX;
+                var y = e.touches[0].clientY;
+
+                var dx = x - joyStick.x;
+                var dy = y - joyStick.y;
+                joyStick.r = (Math.sqrt(dx ** 2 + dy ** 2) / 2);
+                if (joyStick.r > joyStick.outR) {
+                    joyStick.r = joyStick.outR;
+                }
+                joyStick.angle = Math.atan2(dy, dx);
+            }
+            ontouchend = function () {
+                joyStick.isDragging = 0;
+            }
+        }
+
+        var hue = 0;
+
+        function draw() {
+
+
+            if (pacMan.dead) {
+                gameOver();
+                return;
+            }
+
+
+
+            switch (pacManState) {
+                case 0:
+                    // pacMan.vx=0;
+                    // pacMan.vy=0;
+                    break;
+
+                case 1:
+                    pacMan.accelerate(0, -0.5);
+                    break;
+
+                case 2:
+                    pacMan.accelerate(0, 0.5);
+                    break;
+
+                case 3:
+                    pacMan.accelerate(0.5, 0);
+                    break;
+
+                case 4:
+                    pacMan.accelerate(-0.5, 0);
+                    break;
+            }
+
+
+            ctx.clearRect(0, 0, w, h);
+
+            if (joyStick) joyStick.provideInput(pacMan);
+            hue += 0.5;
+            pacMan.update();
+            enemy.update(pacMan);
+            enemy.draw();
+            weeds.forEach(weed => {
+                weed.color = "hsla(" + (hue % 360) + ",100%,50%,1)";
+                weed.draw();
+                if (weed.collideWith(pacMan)) {
+                    pacMan.dead = 1;
+                    return;
+                }
+            });
+
+            pacMan.draw(ctx);
+            if (joyStick) joyStick.draw();
+
+            requestAnimationFrame(draw);
+        }
+
+        function gameOver() {
+            var Text = "Game Over";
+            var ScoreF = "Score : " + pacMan.score;
+            ctx.font = "25px sans-serif";
+            var ts = Math.max(ctx.measureText(Text).width, ctx.measureText(ScoreF).width);
+            ctx.fillStyle = "#000";
+            ctx.fillRect((w / 2) - ts, (h / 2) - 60, ts * 2, 150);
+            ctx.fillStyle = "#FFF";
+            ctx.fillText(Text, (w / 2) - (ts / 2), h / 2);
+            ctx.fillText(ScoreF, (w / 2) - (ts / 2), (h / 2) + 30);
+            document.getElementById("resetBtn").style.display="block";
+        }
+
+        function stop() {
+            pacMan.vx = 0;
+            pacMan.vy = 0;
+        }
+
+        onkeydown = (e) => {
+            switch (e.keyCode) {
+                case 38:
+                    pacManState = 1;
+                    break;
+
+                case 40:
+                    pacManState = 2;
+                    break;
+
+                case 39:
+                    pacManState = 3;
+                    break;
+                case 37:
+                    pacManState = 4;
+                    break;
+                case 32:
+                    stop();
+                    break;
+            }
+        }
+
+        onkeyup = (e) => {
+            pacManState = 0;
+        }
+
+        function rand(a, b) {
+            return Math.floor(a + (Math.random() * (b - a + 1)));
+        }
+
+    </script>
+</body>
+
+</html>
